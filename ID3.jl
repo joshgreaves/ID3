@@ -11,8 +11,9 @@ import Base.+
 import Base.*
 import Base.max
 import Base.size
+import Base.print
 
-export decision_tree, classify, DecisionTree
+export decision_tree, classify, DecisionTree, print
 
 abstract type DTNode end
 
@@ -57,6 +58,34 @@ end
 function size(tree::DecisionTree)
     return size(tree.root)
 end
+function print(io::IO, tree::DecisionTree)
+    nodes = DTNode[tree.root]
+    i = 1
+    while i <= length(nodes)
+        print(io, "(")
+        print(io, i)
+        print(io, ") ")
+        node = nodes[i]
+        if typeof(node) == DecisionNode
+            print(io, "Split on ")
+            print(io, tree.datanames[node.index])
+            print(io, " -> ")
+            for key in keys(node.children)
+                push!(nodes, node.children[key])
+                print(io, "(")
+                print(io, length(nodes))
+                print(io, ") ")
+                print(io, key)
+                print(", ")
+            end
+            println()
+        elseif typeof(node) == LeafNode
+            print(io, "classify: ")
+            println(io, node)
+        end
+        i += 1
+    end
+end
 
 struct DecisionNode <: DTNode
     index::Integer
@@ -78,6 +107,14 @@ function LeafNode(x::Symbol)
 end
 function size(node::LeafNode)
     return 1
+end
+function print(io::IO, node::LeafNode)
+    for key in keys(node.class.result)
+        print(io, key)
+        print(io, " ")
+        print(io, node.class.result[key])
+        print(io, ", ")
+    end
 end
 
 function count(x::Matrix{Symbol})
