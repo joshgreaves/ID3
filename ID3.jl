@@ -4,13 +4,13 @@ module ID3
 # make decisions on real values, only on nominal values.
 
 # TODO
-# 3. Classification does a weighted vote
 # 4. DT explains why it made a choice
 # 5. Do pruning
-# 6. Don't keep splitting forever
 
 import Base.+
 import Base.*
+import Base.max
+import Base.size
 
 export decision_tree, classify, DecisionTree
 
@@ -38,16 +38,33 @@ function *(l::AbstractFloat, r::DecisionTreeResult)
     end
     return r
 end
+function max(r::DecisionTreeResult)
+    max_s = :none
+    max_p = 0
+    for key in keys(r.result)
+        if r.result[key] > max_p
+            max_p = r.result[key]
+            max_s = key
+        end
+    end
+    return max_s, max_p
+end
 
 struct DecisionTree
     root::DTNode
     datanames::Vector{AbstractString}
+end
+function size(tree::DecisionTree)
+    return size(tree.root)
 end
 
 struct DecisionNode <: DTNode
     index::Integer
     children::Dict{Symbol, DTNode}
     probs::Vector{Tuple{<:DTNode, <:AbstractFloat}}
+end
+function size(node::DecisionNode)
+    return 1 + sum(map(size, values(node.children)))
 end
 
 struct LeafNode <: DTNode
@@ -58,6 +75,9 @@ function LeafNode(x::Dict{Symbol, <:AbstractFloat})
 end
 function LeafNode(x::Symbol)
     return LeafNode(Dict(x => 1.0))
+end
+function size(node::LeafNode)
+    return 1
 end
 
 function count(x::Matrix{Symbol})
@@ -103,14 +123,28 @@ function calc_gain(x::Vector{Symbol}, y::Vector{Symbol})
     return info
 end
 
+function validate(x::Matrix{Symbol}, y::Matrix{Symbol}, node::DTNode)
+    correct = 0
+    num_data = size(x)[1]
+    for i in 1:num_data
+        pred = classify(x[i, :], node)
+        if y[i, 1] == max(pred)[1]
+            correct += 1
+        end
+    end
+    return correct / num_data
+end
+
 function decision_tree(x::Matrix{Symbol}, y::Matrix{Symbol},
-                     names::Vector{<:AbstractString})
-    return DecisionTree(create_tree_inner(x, y, size(x)[2]),
+                     names::Vector{<:AbstractString};
+                     validation::Tuple{Matrix{Symbol}, Matrix{Symbol}}=(Matrix{Symbol}(0, 0), Matrix{Symbol}(0, 0)))
+    return DecisionTree(create_tree_inner(x, y, size(x)[2], val=validation),
                         names)
 end
 
 function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
-                           remaining_splits::Integer)
+                           remaining_splits::Integer;
+                           val::Tuple{Matrix{Symbol}, Matrix{Symbol}}=(Matrix{Symbol}(0, 0), Matrix{Symbol}(0, 0)))
    # Get the number of features
    y_counts = count(y)
    y_keys = keys(y_counts)
@@ -159,10 +193,33 @@ function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
     for key in split_keys
         indices = x[:, best_index] .== key
         child = create_tree_inner(x[indices, :], y[indices, :],
-                                  remaining_splits - 1)
+                                  remaining_splits - 1, val=val)
         node.children[key] = child
         prob = sum(indices) / num_data
         push!(node.probs, (child, prob))
+    end
+
+    # If using a validation set, test to see if accuracy increases
+    if length(val[1]) > 0
+        acc = validate(val[1], val[2], node)
+
+        most = 0
+        for key in keys(y_counts)
+            ratio = y_counts[key] / num_data
+            if ratio > most
+                most = ratio
+            end
+        end
+
+        println(most, ", ", acc)
+        if most > acc
+            println("Creating leaf node instead")
+            result = DecisionTreeResult(Dict{Symbol, Float64}())
+            for key in keys(y_counts)
+                result.result[key] = y_counts[key] / num_data
+            end
+            return LeafNode(result)
+        end
     end
 
     return node
@@ -170,15 +227,7 @@ end
 
 function classify(x::Vector{Symbol}, node::DecisionTree)
     result = classify(x, node.root)
-    max_p = 0.0
-    max_c = :none
-    for key in keys(result.result)
-        if result.result[key] > max_p
-            max_p = result.result[key]
-            max_c = key
-        end
-    end
-    return max_c, max_p
+    return max(result)
 end
 
 function classify(x::Vector{Symbol}, node::DecisionNode)

@@ -13,9 +13,10 @@ y = convert(Array{Symbol}, arff.data[:, 5:5])
 
 # Split into test and validation set
 train_x, train_y, test_x, test_y = splitdata(x, y)
+train_x, train_y, val_x, val_y = splitdata(train_x, train_y)
 feature_names = String["Age", "Spectacle-prescript", "Astigmatism", "Tear-prod-rate"]
 
-tree = decision_tree(train_x, train_y, feature_names)
+tree = decision_tree(train_x, train_y, feature_names, validation=(val_x, val_y))
 
 correct = 0
 for i in 1:size(test_x)[1]
