@@ -12,6 +12,6 @@ feature_names = String["Age", "Spectacle-prescript", "Astigmatism", "Tear-prod-r
 
 tree = ID3.create_tree_inner(x, y)
 
-for i in 1:size(x)[1]
-    println(ID3.classify(x[i, :], tree), ": ", y[i, 1])
-end
+# for i in 1:size(x)[1]
+#     println(ID3.classify(x[i, :], tree), ": ", y[i, 1])
+# end

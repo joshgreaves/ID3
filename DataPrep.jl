@@ -1,5 +1,7 @@
 module DataPrep
 
+export splitdata, shuffledata, getbatch
+
 function splitdata(data::Array{<:Any, 2}, split::AbstractFloat=0.75)
     data_points = size(data)[1]
     indices = shuffle(1:data_points)

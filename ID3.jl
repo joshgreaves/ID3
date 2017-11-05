@@ -3,22 +3,61 @@ module ID3
 # For my implementation, I do not allow my DecisionTree to
 # make decisions on real values, only on nominal values.
 
-export create_tree
+# TODO
+# 3. Classification does a weighted vote
+# 4. DT explains why it made a choice
+# 5. Do pruning
+# 6. Don't keep splitting forever
+
+import Base.+
+import Base.*
+
+export decision_tree, classify, DecisionTree
 
 abstract type DTNode end
 
-struct DecisionNode <: DTNode
-    index::Integer
-    children::Dict{Symbol, DTNode}
+struct DecisionTreeResult
+    result::Dict{Symbol, <:AbstractFloat}
 end
-
-struct LeafNode <: DTNode
-    class::Symbol
+function +(l::DecisionTreeResult, r::DecisionTreeResult)
+    result = DecisionTreeResult(Dict{Symbol, AbstractFloat}())
+    for key in keys(l.result)
+        result.result[key] = l.result[key]
+    end
+    for key in keys(r.result)
+        if !(key in keys(result.result))
+            result.result[key] = 0
+        end
+        result.result[key] += r.result[key]
+    end
+    return result
+end
+function *(l::AbstractFloat, r::DecisionTreeResult)
+    for key in keys(r.result)
+        r.result[key] = r.result[key] * l
+    end
+    return r
 end
 
 struct DecisionTree
     root::DTNode
     datanames::Vector{AbstractString}
+end
+
+struct DecisionNode <: DTNode
+    index::Integer
+    children::Dict{Symbol, DTNode}
+    probs::Vector{Tuple{<:DTNode, <:AbstractFloat}}
+end
+
+struct LeafNode <: DTNode
+    class::DecisionTreeResult
+end
+function LeafNode(x::Dict{Symbol, <:AbstractFloat})
+    return LeafNode(DecisionTreeResult(x))
+end
+function LeafNode(x::Symbol)
+    return LeafNode(Dict(x => 1.0))
 end
 
 function count(x::Matrix{Symbol})
@@ -64,23 +103,33 @@ function calc_gain(x::Vector{Symbol}, y::Vector{Symbol})
     return info
 end
 
-function create_tree(x::Matrix{Symbol}, y::Matrix{Symbol},
+function decision_tree(x::Matrix{Symbol}, y::Matrix{Symbol},
                      names::Vector{<:AbstractString})
+    return DecisionTree(create_tree_inner(x, y, size(x)[2]),
+                        names)
 end
 
-function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol})
-    # Base case: all data points are the same
-    # TODO
-    # Base case: There is only one class remaining
-    y_counts = count(y)
-    y_keys = keys(y_counts)
-    if length(y_keys) == 1
-        return LeafNode(first(y_keys))
-    end
+function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
+                           remaining_splits::Integer)
+   # Get the number of features
+   y_counts = count(y)
+   y_keys = keys(y_counts)
+   num_classes = length(y_keys)
+   num_data = length(y)
 
-    # Get the number of features
-    num_classes = length(y_keys)
-    num_data = length(y)
+   # Base case: There is only one class remaining
+   if length(y_keys) == 1
+       return LeafNode(first(y_keys))
+   end
+
+    # Base case: no splits remaining
+    if remaining_splits == 0
+        result = DecisionTreeResult(Dict{Symbol, Float64}())
+        for key in keys(y_counts)
+            result.result[key] = y_counts[key] / num_data
+        end
+        return LeafNode(result)
+    end
 
     # Calculate Information
     info = 0
@@ -89,7 +138,7 @@ function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol})
         ratio = count / num_data
         info -= ratio * log2(ratio)
     end
-    println("Information: ", info)
+    # println("Information: ", info)
 
     # Loop through each feature
     best_index = 0
@@ -101,21 +150,44 @@ function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol})
             best_index = i
         end
     end
-    println("Best index is: ", best_index, " with information gain of ", max_gain)
+    # println("Best index is: ", best_index, " with information gain of ", max_gain)
 
     # Split on that data point
-    node = DecisionNode(best_index, Dict{Symbol, DTNode}())
+    node = DecisionNode(best_index, Dict{Symbol, DTNode}(),
+                        Vector{Tuple{<:DTNode, <:AbstractFloat}}())
     split_keys = unique(x[:, best_index])
     for key in split_keys
         indices = x[:, best_index] .== key
-        node.children[key] = create_tree_inner(x[indices, :], y[indices, :])
+        child = create_tree_inner(x[indices, :], y[indices, :],
+                                  remaining_splits - 1)
+        node.children[key] = child
+        prob = sum(indices) / num_data
+        push!(node.probs, (child, prob))
     end
 
     return node
 end
 
+function classify(x::Vector{Symbol}, node::DecisionTree)
+    result = classify(x, node.root)
+    max_p = 0.0
+    max_c = :none
+    for key in keys(result.result)
+        if result.result[key] > max_p
+            max_p = result.result[key]
+            max_c = key
+        end
+    end
+    return max_c, max_p
+end
+
 function classify(x::Vector{Symbol}, node::DecisionNode)
-    return classify(x, node.children[x[node.index]])
+    if x[node.index] in keys(node.children)
+        return classify(x, node.children[x[node.index]])
+    else
+        lst = [tup[2] * classify(x, tup[1]) for tup in node.probs]
+        return reduce((a, b) -> a + b, lst)
+    end
 end
 
 function classify(x::Vector{Symbol}, node::LeafNode)
