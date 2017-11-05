@@ -1,6 +1,21 @@
 module DataPrep
 
-export splitdata, shuffledata, getbatch
+export partition, splitdata, shuffledata, getbatch
+
+function partition(x::Matrix{<:Any}, y::Matrix{<:Any}, n::Integer)
+    num_data = size(x)[1]
+    partition_size = num_data / n
+    xs = Vector{typeof(x)}(n)
+    ys = Vector{typeof(y)}(n)
+    last = 1
+    for i in 1:n
+        next = Int32(floor(partition_size * i))
+        xs[i] = x[last:next, :]
+        ys[i] = y[last:next, :]
+        last = next + 1
+    end
+    return xs, ys
+end
 
 function splitdata(data::Array{<:Any, 2}, split::AbstractFloat=0.75)
     data_points = size(data)[1]
