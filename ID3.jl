@@ -13,7 +13,7 @@ import Base.max
 import Base.size
 import Base.print
 
-export decision_tree, classify, DecisionTree, print
+export decision_tree, classify, DecisionTree, print, height
 
 abstract type DTNode end
 
@@ -86,6 +86,9 @@ function print(io::IO, tree::DecisionTree)
         i += 1
     end
 end
+function height(tree::DecisionTree)
+    return height(tree.root)
+end
 
 struct DecisionNode <: DTNode
     index::Integer
@@ -94,6 +97,9 @@ struct DecisionNode <: DTNode
 end
 function size(node::DecisionNode)
     return 1 + sum(map(size, values(node.children)))
+end
+function height(node::DecisionNode)
+    return 1 + maximum(map(height, values(node.children)))
 end
 
 struct LeafNode <: DTNode
@@ -115,6 +121,9 @@ function print(io::IO, node::LeafNode)
         print(io, node.class.result[key])
         print(io, ", ")
     end
+end
+function height(node::LeafNode)
+    return 1
 end
 
 function count(x::Matrix{Symbol})
@@ -160,12 +169,12 @@ function calc_gain(x::Vector{Symbol}, y::Vector{Symbol})
     return info
 end
 
-function validate(x::Matrix{Symbol}, y::Matrix{Symbol}, node::DTNode)
+function validate(tree::DecisionTree, x::Matrix{Symbol}, y::Matrix{Symbol})
     correct = 0
     num_data = size(x)[1]
     for i in 1:num_data
-        pred = classify(x[i, :], node)
-        if y[i, 1] == max(pred)[1]
+        pred = classify(x[i, :], tree)
+        if y[i, 1] == pred[1]
             correct += 1
         end
     end
@@ -175,24 +184,32 @@ end
 function decision_tree(x::Matrix{Symbol}, y::Matrix{Symbol},
                      names::Vector{<:AbstractString};
                      val::Bool=false, pruning::Bool=false)
-    # remove any data that has missing values, we can't train on it
-    num_data = size(x)[1]
-    indices = fill(true, num_data)
-    for i in 1:num_data
-        if contains(==, x[i, :], :?)
-            indices[i] = false
-        end
+    val_x = :none
+    val_y = :none
+    if pruning
+        # TODO For some reason I cannot import DataPrep, so this should be
+        # replaced with the splitdata function
+        # x, y, val_x, val_y = splitdata(x, y)
+        data_points = size(x)[1]
+        indices = shuffle(1:data_points)
+        split_index = Int32(floor(data_points * 0.75))
+        val_x = x[indices[(split_index+1):end],:]
+        val_y = y[indices[(split_index+1):end],:]
+        x =  x[indices[1:split_index],:]
+        y = y[indices[1:split_index],:]
     end
 
     # Create the tree
-    return DecisionTree(create_tree_inner(x[indices, :], y[indices, :],
-                        size(x)[2], val=val, pruning=pruning),
-                        names)
+    tree = DecisionTree(create_tree_inner(x, y, size(x)[2], val=val), names)
+    if pruning
+        prune(tree, val_x, val_y)
+    end
+    return tree
 end
 
 function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
                            remaining_splits::Integer;
-                           val::Bool=false, pruning::Bool=false)
+                           val::Bool=false)
    # Get the number of features
    y_counts = count(y)
    y_keys = keys(y_counts)
@@ -281,6 +298,38 @@ function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
     # end
 
     return node
+end
+
+function count_probs(node::DecisionNode)
+    return reduce(+, map(x -> x[2] * count_probs(x[1]), node.probs))
+end
+function count_probs(node::LeafNode)
+    return node.class
+end
+
+function prune(tree::DecisionTree, x::Matrix{Symbol}, y::Matrix{Symbol})
+    nodes = DTNode[tree.root]
+
+    for node in nodes
+        if typeof(node) == DecisionNode
+            acc = validate(tree, x, y)
+            swap = copy(node.children)
+            for key in keys(node.children)
+                probs = count_probs(node.children[key])
+                node.children[key] = LeafNode(probs)
+            end
+            new_acc = validate(tree, x, y)
+
+            if acc > new_acc
+                for key in keys(swap)
+                    node.children[key] = swap[key]
+                    push!(nodes, node.children[key])
+                end
+            else
+                println("Pruning: ", acc, ", ", new_acc)
+            end
+        end
+    end
 end
 
 function classify(x::Vector{Symbol}, node::DecisionTree)

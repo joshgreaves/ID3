@@ -15,7 +15,7 @@ y = convert(Array{Symbol}, arff.data[:, end:end])
 feature_names = String["buying", "maintenance", "doors", "persons", "lug_boot",
                        "safety"]
 
-train_fn(x, y) = decision_tree(x, y, feature_names)
+train_fn(x, y) = decision_tree(x, y, feature_names, pruning=true)
 function classify_fn(model, x::Matrix{Symbol}, y::Matrix{Symbol})
     num_data = size(x)[1]
     correct = 0
@@ -29,3 +29,4 @@ function classify_fn(model, x::Matrix{Symbol}, y::Matrix{Symbol})
 end
 
 train_acc, test_acc = cross_validate(x, y, train_fn, classify_fn, n=10)
+tree = decision_tree(x, y, feature_names)

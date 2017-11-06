@@ -1,7 +1,7 @@
-include("./ID3.jl")
-include("./Arff.jl")
-include("./DataPrep.jl")
-include("./CrossValidation.jl")
+include("ID3.jl")
+include("Arff.jl")
+include("DataPrep.jl")
+include("CrossValidation.jl")
 
 import Arff
 importall ID3
@@ -31,7 +31,7 @@ feature_names = String["handicapped-infants",
                        "duty-free-exports",
                        "export-administration-act-south-africa"]
 
-train_fn(x, y) = decision_tree(remove_unknowns(x, y), y, feature_names)
+train_fn(x, y) = decision_tree(remove_unknowns(x, y), y, feature_names, pruning=true)
 function classify_fn(model, x::Matrix{Symbol}, y::Matrix{Symbol})
     num_data = size(x)[1]
     correct = 0
@@ -45,3 +45,5 @@ function classify_fn(model, x::Matrix{Symbol}, y::Matrix{Symbol})
 end
 
 train_acc, test_acc = cross_validate(x, y, train_fn, classify_fn, n=10)
+tree = decision_tree(remove_unknowns(x, y), y, feature_names)
+tree2 = decision_tree(remove_unknowns(x, y), y, feature_names, pruning=true)
