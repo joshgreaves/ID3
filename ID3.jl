@@ -201,6 +201,7 @@ function decision_tree(x::Matrix{Symbol}, y::Matrix{Symbol},
 
     # Create the tree
     tree = DecisionTree(create_tree_inner(x, y, size(x)[2], val=val), names)
+
     if pruning
         prune(tree, val_x, val_y)
     end
@@ -237,7 +238,6 @@ function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
         ratio = count / num_data
         info -= ratio * log2(ratio)
     end
-    # println("Information: ", info)
 
     # Loop through each feature
     best_index = 0
@@ -249,7 +249,6 @@ function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
             best_index = i
         end
     end
-    # println("Best index is: ", best_index, " with information gain of ", max_gain)
 
     # If best index is still 0, return a leaf node
     if best_index == 0
