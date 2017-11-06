@@ -174,14 +174,25 @@ end
 
 function decision_tree(x::Matrix{Symbol}, y::Matrix{Symbol},
                      names::Vector{<:AbstractString};
-                     validation::Tuple{Matrix{Symbol}, Matrix{Symbol}}=(Matrix{Symbol}(0, 0), Matrix{Symbol}(0, 0)))
-    return DecisionTree(create_tree_inner(x, y, size(x)[2], val=validation),
+                     val::Bool=false, pruning::Bool=false)
+    # remove any data that has missing values, we can't train on it
+    num_data = size(x)[1]
+    indices = fill(true, num_data)
+    for i in 1:num_data
+        if contains(==, x[i, :], :?)
+            indices[i] = false
+        end
+    end
+
+    # Create the tree
+    return DecisionTree(create_tree_inner(x[indices, :], y[indices, :],
+                        size(x)[2], val=val, pruning=pruning),
                         names)
 end
 
 function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
                            remaining_splits::Integer;
-                           val::Tuple{Matrix{Symbol}, Matrix{Symbol}}=(Matrix{Symbol}(0, 0), Matrix{Symbol}(0, 0)))
+                           val::Bool=false, pruning::Bool=false)
    # Get the number of features
    y_counts = count(y)
    y_keys = keys(y_counts)
@@ -223,6 +234,15 @@ function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
     end
     # println("Best index is: ", best_index, " with information gain of ", max_gain)
 
+    # If best index is still 0, return a leaf node
+    if best_index == 0
+        result = DecisionTreeResult(Dict{Symbol, Float64}())
+        for key in keys(y_counts)
+            result.result[key] = y_counts[key] / num_data
+        end
+        return LeafNode(result)
+    end
+
     # Split on that data point
     node = DecisionNode(best_index, Dict{Symbol, DTNode}(),
                         Vector{Tuple{<:DTNode, <:AbstractFloat}}())
@@ -236,28 +256,29 @@ function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
         push!(node.probs, (child, prob))
     end
 
-    # If using a validation set, test to see if accuracy increases
-    if length(val[1]) > 0
-        acc = validate(val[1], val[2], node)
-
-        most = 0
-        for key in keys(y_counts)
-            ratio = y_counts[key] / num_data
-            if ratio > most
-                most = ratio
-            end
-        end
-
-        println(most, ", ", acc)
-        if most > acc
-            println("Creating leaf node instead")
-            result = DecisionTreeResult(Dict{Symbol, Float64}())
-            for key in keys(y_counts)
-                result.result[key] = y_counts[key] / num_data
-            end
-            return LeafNode(result)
-        end
-    end
+    # TODO - get validation working again
+    # # If using a validation set, test to see if accuracy increases
+    # if length(val[1]) > 0
+    #     acc = validate(val[1], val[2], node)
+    #
+    #     most = 0
+    #     for key in keys(y_counts)
+    #         ratio = y_counts[key] / num_data
+    #         if ratio > most
+    #             most = ratio
+    #         end
+    #     end
+    #
+    #     println(most, ", ", acc)
+    #     if most > acc
+    #         println("Creating leaf node instead")
+    #         result = DecisionTreeResult(Dict{Symbol, Float64}())
+    #         for key in keys(y_counts)
+    #             result.result[key] = y_counts[key] / num_data
+    #         end
+    #         return LeafNode(result)
+    #     end
+    # end
 
     return node
 end

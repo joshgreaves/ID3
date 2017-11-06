@@ -3,8 +3,8 @@ module CrossValidation
 # learning algorithm and dataset
 
 include("./DataPrep.jl")
-import DataPrep.partition
-import DataPrep.shuffledata
+
+importall DataPrep
 
 export cross_validate
 
@@ -14,14 +14,18 @@ function cross_validate(x::Any, y::Any, train_fn::Function,
     xs, ys = shuffledata(x, y)
     xs, ys = partition(xs, ys, n)
 
-    acc = Vector{Float64}(n)
+    train_acc = Vector{Float64}(n)
+    test_acc = Vector{Float64}(n)
     for i in 1:n
         indices = [true for j in 1:n]
         indices[i] = false
-        trained = train_fn(vcat(xs[indices]...), vcat(ys[indices]...))
-        acc[i] = classify_fn(trained, xs[i], ys[i])
+        train_y = vcat(ys[indices]...)
+        train_x = vcat(xs[indices]...)
+        trained = train_fn(train_x, train_y)
+        train_acc[i] = classify_fn(trained, train_x, train_y)
+        test_acc[i] = classify_fn(trained, xs[i], ys[i])
     end
-    return mean(acc)
+    return train_acc, test_acc
 end
 
 end

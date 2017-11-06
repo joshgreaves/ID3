@@ -1,29 +1,31 @@
 include("./ID3.jl")
 include("./Arff.jl")
 include("./DataPrep.jl")
+include("./CrossValidation.jl")
 
 import Arff
 importall ID3
 importall DataPrep
+importall CrossValidation
 
 # Load the data
 arff = Arff.loadarff("./data/cars.arff", should_parse=false)
 x = convert(Array{Symbol}, arff.data[:, 1:end-1])
 y = convert(Array{Symbol}, arff.data[:, end:end])
-train_x, train_y, test_x, test_y = splitdata(x, y)
-train_x, train_y, val_x, val_y = splitdata(train_x, train_y)
-feature_names = String["Age", "Spectacle-prescript", "Astigmatism", "Tear-prod-rate"]
+feature_names = String["buying", "maintenance", "doors", "persons", "lug_boot",
+                       "safety"]
 
-# tree = ID3.decision_tree(x, y, feature_names, validation=(val_x, val_y))
-tree = ID3.decision_tree(x, y, feature_names)
-
-correct = 0
-for i in 1:size(test_x)[1]
-    prediction = classify(test_x[i, :], tree)
-    println(prediction, ", ", test_y[i, 1])
-    if test_y[i, 1] == classify(test_x[i, :], tree)[1]
-        correct += 1
+train_fn(x, y) = decision_tree(x, y, feature_names)
+function classify_fn(model, x::Matrix{Symbol}, y::Matrix{Symbol})
+    num_data = size(x)[1]
+    correct = 0
+    for i in 1:num_data
+        pred, conf = classify(x[i, :], model)
+        if pred == y[i, 1]
+            correct += 1
+        end
     end
+    return correct / num_data
 end
 
-println("Accuracy: ", correct, "/", length(test_y), " = ", correct / length(test_y))
+train_acc, test_acc = cross_validate(x, y, train_fn, classify_fn, n=10)

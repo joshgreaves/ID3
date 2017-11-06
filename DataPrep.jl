@@ -1,6 +1,53 @@
 module DataPrep
 
-export partition, splitdata, shuffledata, getbatch
+export partition, splitdata, shuffledata, getbatch, remove_unknowns
+
+function remove_unknowns(x::Matrix{<:Any}, y::Matrix{<:Any}; unk::Any=:?)
+    x = copy(x)
+
+    classes = unique(y)
+    num_data = size(x)[1]
+    num_features = size(x)[2]
+
+    bests = Dict{Symbol, Vector{Symbol}}()
+    # Collect the mean for each class
+    for class in classes
+        indices = y[:, 1] .== class
+        class_xs = x[indices, :]
+
+        best = Vector{Symbol}(num_features)
+        for i in 1:num_features
+            counts = Dict{Symbol, Int64}()
+            features = unique(class_xs[:, i])
+            for feature in features
+                counts[feature] = sum(class_xs[:, i] .== feature)
+            end
+
+            best_s = :none
+            best_n = 0
+            for key in keys(counts)
+                if counts[key] > best_n && key != unk
+                    best_s = key
+                    best_n = counts[key]
+                end
+            end
+
+            best[i] = best_s
+            bests[class] = best
+        end
+    end
+
+    # Now we have the bests, loop through the data altering it
+    for i in 1:num_data
+        for j in 1:num_features
+            if x[i, j] == unk
+                x[i, j] = bests[y[i, 1]][j]
+            end
+        end
+    end
+    
+    return x
+end
 
 function partition(x::Matrix{<:Any}, y::Matrix{<:Any}, n::Integer)
     num_data = size(x)[1]
