@@ -217,6 +217,8 @@ function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
    num_classes = length(y_keys)
    num_data = length(y)
 
+   println(remaining_splits, ": ", num_data, ", ", num_classes)
+
    # Base case: There is only one class remaining
    if length(y_keys) == 1
        return LeafNode(first(y_keys))
@@ -271,30 +273,6 @@ function create_tree_inner(x::Matrix{Symbol}, y::Matrix{Symbol},
         prob = sum(indices) / num_data
         push!(node.probs, (child, prob))
     end
-
-    # TODO - get validation working again
-    # # If using a validation set, test to see if accuracy increases
-    # if length(val[1]) > 0
-    #     acc = validate(val[1], val[2], node)
-    #
-    #     most = 0
-    #     for key in keys(y_counts)
-    #         ratio = y_counts[key] / num_data
-    #         if ratio > most
-    #             most = ratio
-    #         end
-    #     end
-    #
-    #     println(most, ", ", acc)
-    #     if most > acc
-    #         println("Creating leaf node instead")
-    #         result = DecisionTreeResult(Dict{Symbol, Float64}())
-    #         for key in keys(y_counts)
-    #             result.result[key] = y_counts[key] / num_data
-    #         end
-    #         return LeafNode(result)
-    #     end
-    # end
 
     return node
 end

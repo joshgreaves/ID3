@@ -16,7 +16,9 @@ function cross_validate(x::Any, y::Any, train_fn::Function,
 
     train_acc = Vector{Float64}(n)
     test_acc = Vector{Float64}(n)
+    results = Vector{Any}(n)
     for i in 1:n
+        println("Fold ", i)
         indices = [true for j in 1:n]
         indices[i] = false
         train_y = vcat(ys[indices]...)
@@ -24,8 +26,9 @@ function cross_validate(x::Any, y::Any, train_fn::Function,
         trained = train_fn(train_x, train_y)
         train_acc[i] = classify_fn(trained, train_x, train_y)
         test_acc[i] = classify_fn(trained, xs[i], ys[i])
+        results[i] = trained
     end
-    return train_acc, test_acc
+    return train_acc, test_acc, results
 end
 
 end

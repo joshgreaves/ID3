@@ -42,20 +42,19 @@ y = reshape(vcat(train_y, test_y), :, 1)
 
 feature_names = ["Pixel" * string(i) for i in 1:num_features]
 
-#
-# train_fn(x, y) = decision_tree(x, y, feature_names, pruning=true)
-# function classify_fn(model, x::Matrix{Symbol}, y::Matrix{Symbol})
-#     num_data = size(x)[1]
-#     correct = 0
-#     for i in 1:num_data
-#         pred, conf = classify(x[i, :], model)
-#         if pred == y[i, 1]
-#             correct += 1
-#         end
-#     end
-#     return correct / num_data
-# end
+train_fn(x, y) = decision_tree(x, y, feature_names, pruning=true)
+function classify_fn(model, x::Matrix{Symbol}, y::Matrix{Symbol})
+    num_data = size(x)[1]
+    correct = 0
+    for i in 1:num_data
+        pred, conf = classify(x[i, :], model)
+        if pred == y[i, 1]
+            correct += 1
+        end
+    end
+    return correct / num_data
+end
 
-# train_acc, test_acc = cross_validate(x, y, train_fn, classify_fn, n=10)
-tree = decision_tree(x, y, feature_names)
-tree2 = decision_tree(x, y, feature_names, pruning=true)
+train_acc, test_acc, trees = cross_validate(x, y, train_fn, classify_fn, n=10)
+# tree = decision_tree(x, y, feature_names)
+# tree2 = decision_tree(x, y, feature_names, pruning=true)
